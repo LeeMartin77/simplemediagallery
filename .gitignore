@@ -2,3 +2,4 @@ example/random
 !example/random/.gitkeep
 example/video
 !example/video/.gitkeep
+src/_media
