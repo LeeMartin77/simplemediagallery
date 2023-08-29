@@ -1,0 +1,17 @@
+name: Publish Container
+
+on:
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: "publish-bleed"
+  cancel-in-progress: true
+
+jobs:
+  publish-bleed:
+    uses: ./.github/workflows/build_docker_image.yml
+    with:
+      VERSION: bleed
+      PUSH: true
+      PUSH_LATEST: true

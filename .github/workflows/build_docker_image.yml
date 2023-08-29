@@ -1,0 +1,49 @@
+name: Build and Publish Container
+
+on:
+  workflow_call:
+    inputs:
+      VERSION:
+        type: string
+        required: true
+      PUSH:
+        type: boolean
+        default: false
+        required: false
+      PUSH_LATEST:
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to GHCR
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: "./tests/api/e2e/.nvmrc"
+
+      - name: Build the Container image
+        working-directory: .
+        run: |
+          sudo apt install qemu-user-static
+          platarch=linux/arm/v7,linux/arm64/v8,linux/amd64
+          podman build --jobs=6 --platform=$platarch --manifest ghcr.io/leemartin77/simplemediagallery:${{ inputs.VERSION }} .
+
+      - name: Push Version
+        if: ${{ inputs.PUSH }}
+        run: podman manifest push ghcr.io/leemartin77/simplemediagallery:${{ inputs.VERSION }} ghcr.io/leemartin77/simplemediagallery:${{ inputs.VERSION }}
+
+      - name: Push Latest
+        if: ${{ inputs.PUSH && inputs.PUSH_LATEST }}
+        run: |
+          podman tag ghcr.io/leemartin77/simplemediagallery:${{ inputs.VERSION }} ghcr.io/leemartin77/simplemediagallery:latest
+          podman manifest push ghcr.io/leemartin77/simplemediagallery:latest ghcr.io/leemartin77/simplemediagallery:latest
