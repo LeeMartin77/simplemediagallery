@@ -1,0 +1,32 @@
+html, body {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  background-color: #444;
+  color: #DDD;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #CCC;
+}
+
+a:visited {
+  color: #BBB
+}
+
+.gallery {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  gap: 1em;
+}
+.thumbnail {
+  width: 6em;
+  padding: 1em;
+  border-radius: 0.5em;
+  background-color: #222;
+  text-align: center;
+}

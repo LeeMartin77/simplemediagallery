@@ -31,7 +31,6 @@ function isEmbeddableVideo($filePath) {
 
 function renderContentViewer($root, $filepath) {
     // minimal gallery view
-    echo "is file";
     $raw_file = '/_media' . $root;
     if (isImageFile($filepath)) {
         echo "<img src='$raw_file' />";
