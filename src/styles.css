@@ -9,10 +9,12 @@ html, body {
 
 a {
   color: #CCC;
+  background-color: #222;
 }
 
 a:visited {
-  color: #BBB
+  color: #BBB;
+  background-color: #222;
 }
 
 .gallery {
@@ -29,4 +31,8 @@ a:visited {
   border-radius: 0.5em;
   background-color: #222;
   text-align: center;
+}
+
+.thumbnail img {
+  max-width: 100%;
 }

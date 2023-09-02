@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_URI'] != '/') {
   </head>
 <body>
 <?php
+
 if ($root != "") {
     renderBreadcrumb($root);
 }
