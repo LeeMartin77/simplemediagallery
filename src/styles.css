@@ -26,11 +26,13 @@ a:visited {
   gap: 1em;
 }
 .thumbnail {
-  width: 6em;
+  max-width: 100%;
   padding: 1em;
   border-radius: 0.5em;
   background-color: #222;
   text-align: center;
+  display: flex;
+  flex-direction: column;
 }
 
 .thumbnail img {

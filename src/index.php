@@ -40,7 +40,7 @@ if (is_file($directory)) {
     $files = array_filter($files, "omitDots");
     echo "<div class='gallery'>";
     foreach ($files as $file) {
-        renderThumbnail($mediaroot . $root, $file);
+        renderThumbnail($mediaroot . $root, $file, 500);
     }
     echo "</div>";
 } else {
