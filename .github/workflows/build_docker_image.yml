@@ -30,6 +30,7 @@ jobs:
       - name: Build the Container image
         working-directory: .
         run: |
+          sudo apt update
           sudo apt install qemu-user-static
           platarch=linux/arm/v7,linux/arm64/v8,linux/amd64
           podman build --jobs=6 --platform=$platarch --manifest ghcr.io/leemartin77/simplemediagallery:${{ inputs.VERSION }} .
