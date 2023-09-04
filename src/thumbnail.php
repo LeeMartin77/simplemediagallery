@@ -60,10 +60,10 @@ if (isImageFile($sourceImagePath)) {
   }
 
   // Create a new image with the calculated dimensions
-  $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+  $resizedImage = imagecreatetruecolor(floor($newWidth), floor($newHeight));
 
   // Resize and copy the source image to the new image
-  imagecopyresampled($resizedImage, $sourceImage, 0, 0, 0, 0, $newWidth, $newHeight, $sourceWidth, $sourceHeight);
+  imagecopyresampled($resizedImage, $sourceImage, 0, 0, 0, 0, floor($newWidth), floor($newHeight), $sourceWidth, $sourceHeight);
 
   // Set the header to indicate it's a JPEG image
   header('Content-Type: image/jpeg');
