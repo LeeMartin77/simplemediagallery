@@ -12,6 +12,6 @@ jobs:
   publish-bleed:
     uses: ./.github/workflows/build_docker_image.yml
     with:
-      VERSION: bleed
+      VERSION: ${{ github.sha }}
       PUSH: true
       PUSH_LATEST: true
