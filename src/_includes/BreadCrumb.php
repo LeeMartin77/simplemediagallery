@@ -2,14 +2,14 @@
 function renderBreadcrumb($path) {
   $segments = explode("/", $path);
   $cumulativePath = "";
-  ?><div><ul>
-    <li><a href='/'>Home</a></li><?php
+  ?><div class='breadcrumb'>
+    <a href='/'>home</a><?php
     foreach ($segments as $segment) {
       if ($segment != "") {
         $cumulativePath = $cumulativePath . "/" . $segment;
-        echo "<li><a href='$cumulativePath'>$segment</a></li>";
+        echo " / <a href='$cumulativePath'>$segment</a>";
       }
     }
-  ?></ul></div><?php
+  ?></div><?php
 }
 ?>

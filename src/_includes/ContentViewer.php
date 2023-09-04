@@ -2,19 +2,10 @@
 
 
 function isImageFile($filePath) {
-  $allowedMimeTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/bmp',
-      'image/webp',
-      // Add more image MIME types as needed
-  ];
-
-  $mime = mime_content_type($filePath);
-
-  return in_array($mime, $allowedMimeTypes);
-}
+    $mime = mime_content_type($filePath);
+  
+    return strpos($mime, 'image/') === 0;
+  }
 
 function isEmbeddableVideo($filePath) {
   $allowedMimeTypes = [

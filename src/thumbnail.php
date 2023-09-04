@@ -7,6 +7,20 @@ function isImageFile($filePath) {
   return strpos($mime, 'image/') === 0;
 }
 
+function extractSourceImage($filePath) {
+  $mime = mime_content_type($filePath);
+  if ($mime === 'image/jpeg') {
+    return imagecreatefromjpeg($filePath);
+  }
+  if ($mime === 'image/bmp' || $mime === 'image/x-ms-bmp') {
+    return imagecreatefrombmp($filePath);
+  }
+  if ($mime === 'image/png') {
+    return imagecreatefrompng($filePath);
+  }
+  return imagecreatefrompng(__DIR__ . '/static/picture.png');
+}
+
 
 function isVideoFile($filePath) {
   $mime = mime_content_type($filePath);
@@ -27,8 +41,7 @@ $mediaroot = __DIR__ . '/_media';
 $sourceImagePath = $mediaroot . $_GET['file'];
 
 if (isImageFile($sourceImagePath)) {
-
-  $sourceImage = imagecreatefromjpeg($sourceImagePath);
+  $sourceImage = extractSourceImage($sourceImagePath);
 
   // Get the source image dimensions
   $sourceWidth = imagesx($sourceImage);
