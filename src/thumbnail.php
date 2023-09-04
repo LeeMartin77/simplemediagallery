@@ -20,6 +20,11 @@ function isImageFile($filePath) {
 $targetWidth = 250;
 $targetHeight = 250;
 
+if (isset($_GET['size'])) {
+  $targetWidth = intval($_GET['size']);
+  $targetHeight = intval($_GET['size']);
+}
+
 $mediaroot = __DIR__ . '/_media';
 $sourceImagePath = $mediaroot . $_GET['file'];
 
