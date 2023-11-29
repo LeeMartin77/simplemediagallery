@@ -10,7 +10,7 @@ FROM docker.io/debian:stable-slim as runner
 WORKDIR /app
 COPY --from=server-builder /usr/src/app/dist/smg /app
 COPY templates /app/templates
-COPY static /app/templates
+COPY static /app/static
 
 EXPOSE 3333
 CMD ["./smg"]

@@ -12,6 +12,45 @@ import (
 
 var templates *template.Template
 
+func serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		http.Error(w, "Error reading file", http.StatusInternalServerError)
+		return
+	}
+	http.ServeContent(w, r, fileInfo.Name(), fileInfo.ModTime(), f)
+}
+
+func getMediaFile(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+
+	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
+	if mediaDir == "" {
+		mediaDir = "/_media"
+	}
+	filepath = strings.Replace(filepath, "/media", mediaDir, 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	serveFile(w, r, file)
+}
+
+func getStaticFile(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+
+	filepath = strings.Replace(filepath, "/static", "./static", 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	serveFile(w, r, file)
+}
+
 func getTemplates() (templates *template.Template, err error) {
 	var allFiles []string
 	files, _ := os.ReadDir("templates")
@@ -37,6 +76,14 @@ func init() {
 
 func handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
+		if strings.HasPrefix(request.URL.Path, "/media") {
+			getMediaFile(writer, request)
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, "/static") {
+			getStaticFile(writer, request)
+			return
+		}
 		// event := News{
 		// 		Headline: "makeuseof.com has everything Tech",
 		// 		Body: "Visit MUO for anything technology related",
