@@ -3,3 +3,4 @@ example/random
 example/video
 !example/video/.gitkeep
 src/_media
+dist

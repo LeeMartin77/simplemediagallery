@@ -1,13 +1,16 @@
-FROM php:8-apache
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.20 as server-builder
+ARG TARGETPLATFORM
+WORKDIR /usr/src/app
 
-RUN apt-get update && apt-get install -y \
-        libfreetype6-dev \
-        libjpeg62-turbo-dev \
-        libpng-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd
+COPY . .
+RUN GOOS=linux GOARCH=$(echo $TARGETPLATFORM | sed 's/linux\///') \
+  go build -o dist/smg src/main.go
 
-RUN a2enmod rewrite
+FROM docker.io/debian:stable-slim as runner
+WORKDIR /app
+COPY --from=server-builder /usr/src/app/dist/smg /app
+COPY templates /app/templates
+COPY static /app/templates
 
-COPY php.ini /usr/local/etc/php/php.ini
-COPY src /var/www/html/
+EXPOSE 3333
+CMD ["./smg"]

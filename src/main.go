@@ -14,11 +14,11 @@ var templates *template.Template
 
 func getTemplates() (templates *template.Template, err error) {
 	var allFiles []string
-	files2, _ := os.ReadDir("_templates")
-	for _, file := range files2 {
+	files, _ := os.ReadDir("templates")
+	for _, file := range files {
 		filename := file.Name()
 		if strings.HasSuffix(filename, ".gohtml") {
-			filePath := filepath.Join("_templates", filename)
+			filePath := filepath.Join("templates", filename)
 			allFiles = append(allFiles, filePath)
 		}
 	}
@@ -57,7 +57,7 @@ func main() {
 	mux.HandleFunc("*", handlePage)
 	mux.HandleFunc("/", handlePage)
 
-	port := "8080"
+	port := "3333"
 	portSetting := os.Getenv("SMG_PORT")
 	if portSetting != "" {
 		port = portSetting
