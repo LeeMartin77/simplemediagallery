@@ -38,6 +38,24 @@ func getMediaFile(w http.ResponseWriter, r *http.Request) {
 	serveFile(w, r, file)
 }
 
+func getThumbnail(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+
+	fmt.Printf("thumbpath: %s", filepath)
+	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
+	if mediaDir == "" {
+		mediaDir = "/_media"
+	}
+	filepath = strings.Replace(filepath, "/thumbnail", mediaDir, 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	serveFile(w, r, file)
+}
+
 func getStaticFile(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
 
@@ -78,6 +96,10 @@ func handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
 		if strings.HasPrefix(request.URL.Path, "/media") {
 			getMediaFile(writer, request)
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, "/thumbnail") {
+			getThumbnail(writer, request)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, "/static") {
