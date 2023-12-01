@@ -12,6 +12,8 @@ import (
 
 var templates *template.Template
 
+var mediaDir string
+
 func serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
 	fileInfo, err := f.Stat()
 	if err != nil {
@@ -23,11 +25,6 @@ func serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
 
 func getMediaFile(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
-
-	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
-	if mediaDir == "" {
-		mediaDir = "/_media"
-	}
 	filepath = strings.Replace(filepath, "/media", mediaDir, 1)
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -40,8 +37,6 @@ func getMediaFile(w http.ResponseWriter, r *http.Request) {
 
 func getThumbnail(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
-
-	fmt.Printf("thumbpath: %s", filepath)
 	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
 	if mediaDir == "" {
 		mediaDir = "/_media"
@@ -90,6 +85,43 @@ func init() {
 		os.Exit(1)
 	}
 	templates = gotTemplates
+	mediaDir = os.Getenv("SMG_MEDIA_DIRECTORY")
+	if mediaDir == "" {
+		mediaDir = "/_media"
+	}
+}
+
+type GalleryDirectoryData struct {
+	Name string
+	Link string
+}
+
+type GalleryFileData struct {
+	Name      string
+	Link      string
+	Thumbnail string
+}
+
+type GalleryData struct {
+	Directories []GalleryDirectoryData
+	Files       []GalleryFileData
+}
+
+type ImageData struct {
+	RawPath string
+}
+
+type Breadcrumb struct {
+	Name string
+	Link string
+}
+
+type PageData struct {
+	ShowBreadcrumb bool
+	Breadcrumbs    []Breadcrumb
+	ShowGallery    bool
+	GalleryData    *GalleryData
+	ImageData      *ImageData
 }
 
 func handlePage(writer http.ResponseWriter, request *http.Request) {
@@ -106,14 +138,71 @@ func handlePage(writer http.ResponseWriter, request *http.Request) {
 			getStaticFile(writer, request)
 			return
 		}
-		// event := News{
-		// 		Headline: "makeuseof.com has everything Tech",
-		// 		Body: "Visit MUO for anything technology related",
-		// }
 
-		data := 2
+		requestDir := mediaDir
+		if request.URL.Path != "/" {
+			requestDir = requestDir + request.URL.Path
+		}
 
-		err := templates.ExecuteTemplate(writer, "baseHTML", data)
+		compoundLink := ""
+
+		breadcrumbs := []Breadcrumb{}
+
+		for _, prt := range strings.Split(request.URL.Path, "/") {
+			compoundLink = compoundLink + prt + "/"
+			breadcrumbs = append(breadcrumbs, Breadcrumb{
+				Name: prt,
+				Link: compoundLink,
+			})
+		}
+
+		data := PageData{
+			ShowBreadcrumb: request.URL.Path != "/",
+			Breadcrumbs:    breadcrumbs,
+			ShowGallery:    true,
+		}
+
+		checkFile, err := os.Stat(requestDir)
+
+		if errors.Is(err, os.ErrNotExist) || checkFile.IsDir() {
+			files, err := os.ReadDir(requestDir)
+			if err != nil {
+				return // 404
+			}
+			directories := []GalleryDirectoryData{}
+			galleryFiles := []GalleryFileData{}
+
+			rooting := request.URL.Path
+			if rooting == "/" {
+				rooting = ""
+			}
+			for _, file := range files {
+				if file.IsDir() {
+					directories = append(directories, GalleryDirectoryData{
+						Name: file.Name(),
+						Link: fmt.Sprintf("%s/%s", rooting, file.Name()),
+					})
+				} else {
+					galleryFiles = append(galleryFiles, GalleryFileData{
+						Name:      file.Name(),
+						Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
+						Thumbnail: fmt.Sprintf("/thumbnail%s/%s", request.URL.Path, file.Name()),
+					})
+				}
+			}
+			data.GalleryData = &GalleryData{
+				Directories: directories,
+				Files:       galleryFiles,
+			}
+			data.ShowGallery = true
+		} else {
+			data.ShowGallery = false
+			data.ImageData = &ImageData{
+				RawPath: "/media" + request.URL.Path,
+			}
+		}
+
+		err = templates.ExecuteTemplate(writer, "baseHTML", data)
 
 		if err != nil {
 			return

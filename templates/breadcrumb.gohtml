@@ -1,6 +1,10 @@
 {{define "breadcrumbHTML"}}
 <div class='breadcrumb'>
-  <a href='/'>home</a>
+
+  <a href='/'>Home</a>
+  {{range $crumb := .Breadcrumbs }}
+    <a href="{{$crumb.Link}}">{{$crumb.Name}}</a>
+  {{end}}
   
 </div>
 {{end}}

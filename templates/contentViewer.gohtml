@@ -1,6 +1,6 @@
 {{define "contentViewerHTML"}}
 <div class='content'>
-<img src='/media/beans.jpg' />
-<a href='/media/beans.jpg'>Full File</a>
+<img src='{{.ImageData.RawPath}}' />
+<a href='{{.ImageData.RawPath}}'>Full File</a>
 </div>
 {{end}}

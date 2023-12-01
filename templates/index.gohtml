@@ -9,11 +9,14 @@
     <title>Simple Media Gallery</title>
   </head>
 <body>
-{{template "breadcrumbHTML" .}}
-
-{{template "contentViewerHTML" .}}
-
-{{template "galleryHTML" .}}
+{{ if .ShowBreadcrumb }}
+  {{template "breadcrumbHTML" .}}
+{{ end }}
+{{ if .ShowGallery }}
+  {{template "galleryHTML" .}}
+{{ else }}
+  {{template "contentViewerHTML" .}}
+{{ end }}
 </body>
 </html>
 {{end}}
