@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -125,7 +126,85 @@ type PageData struct {
 	ImageData      *ImageData
 }
 
-func handlePage(writer http.ResponseWriter, request *http.Request) {
+type RequestHandlers struct {
+	MediaDirectory string
+	Stat           func(name string) (fs.FileInfo, error)
+	ReadDir        func(name string) ([]fs.DirEntry, error)
+}
+
+func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http.Request) {
+	requestDir := mediaDir
+	if request.URL.Path != "/" {
+		requestDir = requestDir + request.URL.Path
+	}
+
+	compoundLink := ""
+
+	breadcrumbs := []Breadcrumb{}
+
+	for _, prt := range strings.Split(request.URL.Path, "/") {
+		compoundLink = compoundLink + prt + "/"
+		breadcrumbs = append(breadcrumbs, Breadcrumb{
+			Name: prt,
+			Link: compoundLink,
+		})
+	}
+
+	data := PageData{
+		ShowBreadcrumb: request.URL.Path != "/",
+		Breadcrumbs:    breadcrumbs,
+		ShowGallery:    true,
+	}
+
+	checkFile, err := hdlr.Stat(requestDir)
+
+	if errors.Is(err, os.ErrNotExist) || checkFile.IsDir() {
+		files, err := hdlr.ReadDir(requestDir)
+		if err != nil {
+			return // 404
+		}
+		directories := []GalleryDirectoryData{}
+		galleryFiles := []GalleryFileData{}
+
+		rooting := request.URL.Path
+		if rooting == "/" {
+			rooting = ""
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				directories = append(directories, GalleryDirectoryData{
+					Name: file.Name(),
+					Link: fmt.Sprintf("%s/%s", rooting, file.Name()),
+				})
+			} else {
+				galleryFiles = append(galleryFiles, GalleryFileData{
+					Name:      file.Name(),
+					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
+					Thumbnail: fmt.Sprintf("/thumbnail%s/%s", request.URL.Path, file.Name()),
+				})
+			}
+		}
+		data.GalleryData = &GalleryData{
+			HasDirectories: len(directories) > 0,
+			Directories:    directories,
+			Files:          galleryFiles,
+		}
+		data.ShowGallery = true
+	} else {
+		data.ShowGallery = false
+		data.ImageData = &ImageData{
+			RawPath: "/media" + request.URL.Path,
+		}
+	}
+
+	err = templates.ExecuteTemplate(writer, "baseHTML", data)
+
+	if err != nil {
+		return
+	}
+}
+
+func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
 		if strings.HasPrefix(request.URL.Path, "/media") {
 			getMediaFile(writer, request)
@@ -139,83 +218,21 @@ func handlePage(writer http.ResponseWriter, request *http.Request) {
 			getStaticFile(writer, request)
 			return
 		}
-
-		requestDir := mediaDir
-		if request.URL.Path != "/" {
-			requestDir = requestDir + request.URL.Path
-		}
-
-		compoundLink := ""
-
-		breadcrumbs := []Breadcrumb{}
-
-		for _, prt := range strings.Split(request.URL.Path, "/") {
-			compoundLink = compoundLink + prt + "/"
-			breadcrumbs = append(breadcrumbs, Breadcrumb{
-				Name: prt,
-				Link: compoundLink,
-			})
-		}
-
-		data := PageData{
-			ShowBreadcrumb: request.URL.Path != "/",
-			Breadcrumbs:    breadcrumbs,
-			ShowGallery:    true,
-		}
-
-		checkFile, err := os.Stat(requestDir)
-
-		if errors.Is(err, os.ErrNotExist) || checkFile.IsDir() {
-			files, err := os.ReadDir(requestDir)
-			if err != nil {
-				return // 404
-			}
-			directories := []GalleryDirectoryData{}
-			galleryFiles := []GalleryFileData{}
-
-			rooting := request.URL.Path
-			if rooting == "/" {
-				rooting = ""
-			}
-			for _, file := range files {
-				if file.IsDir() {
-					directories = append(directories, GalleryDirectoryData{
-						Name: file.Name(),
-						Link: fmt.Sprintf("%s/%s", rooting, file.Name()),
-					})
-				} else {
-					galleryFiles = append(galleryFiles, GalleryFileData{
-						Name:      file.Name(),
-						Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
-						Thumbnail: fmt.Sprintf("/thumbnail%s/%s", request.URL.Path, file.Name()),
-					})
-				}
-			}
-			data.GalleryData = &GalleryData{
-				HasDirectories: len(directories) > 0,
-				Directories:    directories,
-				Files:          galleryFiles,
-			}
-			data.ShowGallery = true
-		} else {
-			data.ShowGallery = false
-			data.ImageData = &ImageData{
-				RawPath: "/media" + request.URL.Path,
-			}
-		}
-
-		err = templates.ExecuteTemplate(writer, "baseHTML", data)
-
-		if err != nil {
-			return
-		}
+		hdlr.handleView(writer, request)
 	}
 }
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("*", handlePage)
-	mux.HandleFunc("/", handlePage)
+
+	hdlr := RequestHandlers{
+		MediaDirectory: mediaDir,
+		Stat:           os.Stat,
+		ReadDir:        os.ReadDir,
+	}
+
+	mux.HandleFunc("*", hdlr.handlePage)
+	mux.HandleFunc("/", hdlr.handlePage)
 
 	port := "3333"
 	portSetting := os.Getenv("SMG_PORT")
