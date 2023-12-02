@@ -1,16 +1,17 @@
 {{define "galleryHTML"}}
+{{ if .HasDirectories }}
+  <div class='directories'>
+    {{range $dir := .Directories }}
+      <a href="{{$dir.Link}}"><img src='/static/folder.png' width='16px' /> {{$dir.Name}}</a>
+    {{end}}
+  </div>
+{{ end }}
 <div class='gallery'>
-{{range $dir := .GalleryData.Directories }}
-<div class='thumbnail' width='300'>
-  <a href="{{$dir.Link}}"><img src='/static/folder.png' /></a>
-  <a href="{{$dir.Link}}">{{$dir.Name}}</a>
-</div>
-{{end}}
-{{range $file := .GalleryData.Files }}
-<div class='thumbnail' width='300'>
-  <a href="{{$file.Link}}"><img src='{{$file.Thumbnail}}?width=300' /></a>
-  <a href="{{$file.Link}}">{{$file.Name}}</a>
-</div>
-{{end}}
+  {{range $file := .Files }}
+  <div class='thumbnail' width='300'>
+    <a href="{{$file.Link}}"><img src='{{$file.Thumbnail}}?width=300' /></a>
+    <a href="{{$file.Link}}">{{$file.Name}}</a>
+  </div>
+  {{end}}
 </div>
 {{end}}

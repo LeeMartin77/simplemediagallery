@@ -13,9 +13,9 @@
   {{template "breadcrumbHTML" .}}
 {{ end }}
 {{ if .ShowGallery }}
-  {{template "galleryHTML" .}}
+  {{template "galleryHTML" .GalleryData}}
 {{ else }}
-  {{template "contentViewerHTML" .}}
+  {{template "contentViewerHTML" .ImageData}}
 {{ end }}
 </body>
 </html>

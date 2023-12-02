@@ -103,8 +103,9 @@ type GalleryFileData struct {
 }
 
 type GalleryData struct {
-	Directories []GalleryDirectoryData
-	Files       []GalleryFileData
+	HasDirectories bool
+	Directories    []GalleryDirectoryData
+	Files          []GalleryFileData
 }
 
 type ImageData struct {
@@ -191,8 +192,9 @@ func handlePage(writer http.ResponseWriter, request *http.Request) {
 				}
 			}
 			data.GalleryData = &GalleryData{
-				Directories: directories,
-				Files:       galleryFiles,
+				HasDirectories: len(directories) > 0,
+				Directories:    directories,
+				Files:          galleryFiles,
 			}
 			data.ShowGallery = true
 		} else {

@@ -17,6 +17,22 @@ a:visited {
   background-color: #222;
 }
 
+.directories {
+  display: flex;
+  justify-content: space-between;
+  width: calc(100% - 2em);
+  padding: 1em;
+  gap: 1em;
+  flex-wrap: wrap;
+  max-height: 6em;
+  overflow-y: scroll;
+  background-color: rgba(0,0,0,0.1);
+}
+.directories a {
+  padding: 0.5em;
+  border-radius: 0.5em;
+}
+
 .gallery {
   display: flex;
   flex-direction: row;
