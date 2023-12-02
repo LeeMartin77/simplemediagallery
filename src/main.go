@@ -132,17 +132,17 @@ type RequestHandlers struct {
 	ReadDir        func(name string) ([]fs.DirEntry, error)
 }
 
-func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http.Request) {
+func (hdlr RequestHandlers) getPageData(path string) *PageData {
 	requestDir := mediaDir
-	if request.URL.Path != "/" {
-		requestDir = requestDir + request.URL.Path
+	if path != "/" {
+		requestDir = requestDir + path
 	}
 
 	compoundLink := ""
 
 	breadcrumbs := []Breadcrumb{}
 
-	for _, prt := range strings.Split(request.URL.Path, "/") {
+	for _, prt := range strings.Split(path, "/") {
 		compoundLink = compoundLink + prt + "/"
 		breadcrumbs = append(breadcrumbs, Breadcrumb{
 			Name: prt,
@@ -151,7 +151,7 @@ func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http
 	}
 
 	data := PageData{
-		ShowBreadcrumb: request.URL.Path != "/",
+		ShowBreadcrumb: path != "/",
 		Breadcrumbs:    breadcrumbs,
 		ShowGallery:    true,
 	}
@@ -161,12 +161,12 @@ func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http
 	if errors.Is(err, os.ErrNotExist) || checkFile.IsDir() {
 		files, err := hdlr.ReadDir(requestDir)
 		if err != nil {
-			return // 404
+			return nil
 		}
 		directories := []GalleryDirectoryData{}
 		galleryFiles := []GalleryFileData{}
 
-		rooting := request.URL.Path
+		rooting := path
 		if rooting == "/" {
 			rooting = ""
 		}
@@ -180,7 +180,7 @@ func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http
 				galleryFiles = append(galleryFiles, GalleryFileData{
 					Name:      file.Name(),
 					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
-					Thumbnail: fmt.Sprintf("/thumbnail%s/%s", request.URL.Path, file.Name()),
+					Thumbnail: fmt.Sprintf("/thumbnail%s/%s", path, file.Name()),
 				})
 			}
 		}
@@ -193,15 +193,10 @@ func (hdlr RequestHandlers) handleView(writer http.ResponseWriter, request *http
 	} else {
 		data.ShowGallery = false
 		data.ImageData = &ImageData{
-			RawPath: "/media" + request.URL.Path,
+			RawPath: "/media" + path,
 		}
 	}
-
-	err = templates.ExecuteTemplate(writer, "baseHTML", data)
-
-	if err != nil {
-		return
-	}
+	return &data
 }
 
 func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
@@ -218,7 +213,17 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 			getStaticFile(writer, request)
 			return
 		}
-		hdlr.handleView(writer, request)
+
+		data := hdlr.getPageData(request.URL.Path)
+
+		if data == nil {
+			return
+		}
+
+		err := templates.ExecuteTemplate(writer, "baseHTML", data)
+		if err != nil {
+			return
+		}
 	}
 }
 
