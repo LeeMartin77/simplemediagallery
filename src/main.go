@@ -79,19 +79,6 @@ func getTemplates() (templates *template.Template, err error) {
 	return template.New("").ParseFiles(allFiles...)
 }
 
-func init() {
-	gotTemplates, err := getTemplates()
-	if err != nil {
-		fmt.Printf("error initialising server: %s\n", err)
-		os.Exit(1)
-	}
-	templates = gotTemplates
-	mediaDir = os.Getenv("SMG_MEDIA_DIRECTORY")
-	if mediaDir == "" {
-		mediaDir = "/_media"
-	}
-}
-
 type GalleryDirectoryData struct {
 	Name string
 	Link string
@@ -133,7 +120,7 @@ type RequestHandlers struct {
 }
 
 func (hdlr RequestHandlers) getPageData(path string) *PageData {
-	requestDir := mediaDir
+	requestDir := hdlr.MediaDirectory
 	if path != "/" {
 		requestDir = requestDir + path
 	}
@@ -228,6 +215,16 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 }
 
 func main() {
+	gotTemplates, err := getTemplates()
+	if err != nil {
+		fmt.Printf("error initialising server: %s\n", err)
+		os.Exit(1)
+	}
+	templates = gotTemplates
+	mediaDir = os.Getenv("SMG_MEDIA_DIRECTORY")
+	if mediaDir == "" {
+		mediaDir = "/_media"
+	}
 	mux := http.NewServeMux()
 
 	hdlr := RequestHandlers{
@@ -244,7 +241,7 @@ func main() {
 	if portSetting != "" {
 		port = portSetting
 	}
-	err := http.ListenAndServe(":"+port, mux)
+	err = http.ListenAndServe(":"+port, mux)
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Printf("server closed\n")
 	} else if err != nil {
