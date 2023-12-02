@@ -12,7 +12,7 @@ run:
 	SMG_MEDIA_DIRECTORY='./example' go run src/main.go
 
 test:
-	go test -v src/...
+	go test ./src
 
 downloadvideos:
 	./get_test_videos.sh
