@@ -1,14 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"html/template"
+	"image"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/nfnt/resize"
+	"golang.org/x/image/bmp"
 )
 
 type GalleryDirectoryData struct {
@@ -75,6 +86,13 @@ func (hdlr RequestHandlers) getMediaFile(w http.ResponseWriter, r *http.Request)
 
 func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
+	rawWidth := r.URL.Query().Get("width")
+	var width uint
+	iwidth, err := strconv.Atoi(rawWidth)
+	if rawWidth == "" || err != nil {
+		iwidth = 300
+	}
+	width = uint(iwidth)
 	filepath = strings.Replace(filepath, "/_thumbnail", hdlr.MediaDirectory, 1)
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -82,7 +100,77 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer file.Close()
+	fileContents, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	mtype := mimetype.Detect(fileContents)
+	if strings.HasPrefix(mtype.String(), "image/") {
+		var img image.Image
+		var err error
+
+		imgFormat := strings.Split(mtype.String(), "/")[1]
+
+		switch imgFormat {
+		case "jpeg":
+			img, err = jpeg.Decode(bytes.NewReader(fileContents))
+		case "bmp":
+			img, err = bmp.Decode(bytes.NewReader(fileContents))
+		case "png":
+			img, err = png.Decode(bytes.NewReader(fileContents))
+		case "gif":
+			img, err = gif.Decode(bytes.NewReader(fileContents))
+		// Add more cases for other image formats if needed
+		default:
+			err = fmt.Errorf("unsupported image format: %s", mtype.String())
+		}
+		if err != nil {
+			return
+		}
+		st, err := file.Stat()
+
+		imgResized := resize.Resize(width, 0, img, resize.Bilinear)
+		var buf bytes.Buffer
+		var imgErr error
+		switch imgFormat {
+		case "jpeg":
+			imgErr = jpeg.Encode(&buf, imgResized, nil)
+		case "bmp":
+			imgErr = bmp.Encode(&buf, imgResized)
+		case "png":
+			imgErr = png.Encode(&buf, imgResized)
+		case "gif":
+			imgErr = gif.Encode(&buf, imgResized, nil)
+		// Add more cases for other image formats if needed
+		default:
+			imgErr = fmt.Errorf("unsupported image format: %s", mtype.String())
+		}
+		if imgErr != nil {
+			return
+		}
+		http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(buf.Bytes()))
+		return
+	}
+	if strings.HasPrefix(mtype.String(), "video/") {
+		file, err := os.Open("./static/play.png")
+		if err != nil {
+			http.Error(w, "No file found", http.StatusNotFound)
+			return
+		}
+		defer file.Close()
+		hdlr.serveFile(w, r, file)
+		return
+	}
+	file, err = os.Open("./static/picture.png")
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
 	hdlr.serveFile(w, r, file)
+	return
 }
 
 func (hdlr RequestHandlers) getStaticFile(w http.ResponseWriter, r *http.Request) {
