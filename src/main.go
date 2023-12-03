@@ -11,74 +11,6 @@ import (
 	"strings"
 )
 
-var templates *template.Template
-
-var mediaDir string
-
-func serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
-	fileInfo, err := f.Stat()
-	if err != nil {
-		http.Error(w, "Error reading file", http.StatusInternalServerError)
-		return
-	}
-	http.ServeContent(w, r, fileInfo.Name(), fileInfo.ModTime(), f)
-}
-
-func getMediaFile(w http.ResponseWriter, r *http.Request) {
-	filepath := r.URL.Path
-	filepath = strings.Replace(filepath, "/media", mediaDir, 1)
-	file, err := os.Open(filepath)
-	if err != nil {
-		http.Error(w, "No file found", http.StatusNotFound)
-		return
-	}
-	defer file.Close()
-	serveFile(w, r, file)
-}
-
-func getThumbnail(w http.ResponseWriter, r *http.Request) {
-	filepath := r.URL.Path
-	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
-	if mediaDir == "" {
-		mediaDir = "/_media"
-	}
-	filepath = strings.Replace(filepath, "/thumbnail", mediaDir, 1)
-	file, err := os.Open(filepath)
-	if err != nil {
-		http.Error(w, "No file found", http.StatusNotFound)
-		return
-	}
-	defer file.Close()
-	serveFile(w, r, file)
-}
-
-func getStaticFile(w http.ResponseWriter, r *http.Request) {
-	filepath := r.URL.Path
-
-	filepath = strings.Replace(filepath, "/static", "./static", 1)
-	file, err := os.Open(filepath)
-	if err != nil {
-		http.Error(w, "No file found", http.StatusNotFound)
-		return
-	}
-	defer file.Close()
-	serveFile(w, r, file)
-}
-
-func getTemplates() (templates *template.Template, err error) {
-	var allFiles []string
-	files, _ := os.ReadDir("templates")
-	for _, file := range files {
-		filename := file.Name()
-		if strings.HasSuffix(filename, ".gohtml") {
-			filePath := filepath.Join("templates", filename)
-			allFiles = append(allFiles, filePath)
-		}
-	}
-
-	return template.New("").ParseFiles(allFiles...)
-}
-
 type GalleryDirectoryData struct {
 	Name string
 	Link string
@@ -117,6 +49,67 @@ type RequestHandlers struct {
 	MediaDirectory string
 	Stat           func(name string) (fs.FileInfo, error)
 	ReadDir        func(name string) ([]fs.DirEntry, error)
+	Templates      *template.Template
+}
+
+func (hdlr RequestHandlers) serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
+	fileInfo, err := f.Stat()
+	if err != nil {
+		http.Error(w, "Error reading file", http.StatusInternalServerError)
+		return
+	}
+	http.ServeContent(w, r, fileInfo.Name(), fileInfo.ModTime(), f)
+}
+
+func (hdlr RequestHandlers) getMediaFile(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+	filepath = strings.Replace(filepath, "/_media", hdlr.MediaDirectory, 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	hdlr.serveFile(w, r, file)
+}
+
+func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+	filepath = strings.Replace(filepath, "/_thumbnail", hdlr.MediaDirectory, 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	hdlr.serveFile(w, r, file)
+}
+
+func (hdlr RequestHandlers) getStaticFile(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+
+	filepath = strings.Replace(filepath, "/static", "./static", 1)
+	file, err := os.Open(filepath)
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+	hdlr.serveFile(w, r, file)
+}
+
+func getTemplates() (templates *template.Template, err error) {
+	var allFiles []string
+	files, _ := os.ReadDir("templates")
+	for _, file := range files {
+		filename := file.Name()
+		if strings.HasSuffix(filename, ".gohtml") {
+			filePath := filepath.Join("templates", filename)
+			allFiles = append(allFiles, filePath)
+		}
+	}
+
+	return template.New("").ParseFiles(allFiles...)
 }
 
 func (hdlr RequestHandlers) getPageData(path string) *PageData {
@@ -167,7 +160,7 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 				galleryFiles = append(galleryFiles, GalleryFileData{
 					Name:      file.Name(),
 					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
-					Thumbnail: fmt.Sprintf("/thumbnail%s/%s", path, file.Name()),
+					Thumbnail: fmt.Sprintf("/_thumbnail%s/%s", path, file.Name()),
 				})
 			}
 		}
@@ -180,7 +173,7 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 	} else {
 		data.ShowGallery = false
 		data.ImageData = &ImageData{
-			RawPath: "/media" + path,
+			RawPath: "/_media" + path,
 		}
 	}
 	return &data
@@ -188,16 +181,16 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 
 func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
-		if strings.HasPrefix(request.URL.Path, "/media") {
-			getMediaFile(writer, request)
+		if strings.HasPrefix(request.URL.Path, "/_media") {
+			hdlr.getMediaFile(writer, request)
 			return
 		}
-		if strings.HasPrefix(request.URL.Path, "/thumbnail") {
-			getThumbnail(writer, request)
+		if strings.HasPrefix(request.URL.Path, "/_thumbnail") {
+			hdlr.getThumbnail(writer, request)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, "/static") {
-			getStaticFile(writer, request)
+			hdlr.getStaticFile(writer, request)
 			return
 		}
 
@@ -207,7 +200,7 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 			return
 		}
 
-		err := templates.ExecuteTemplate(writer, "baseHTML", data)
+		err := hdlr.Templates.ExecuteTemplate(writer, "baseHTML", data)
 		if err != nil {
 			return
 		}
@@ -220,8 +213,7 @@ func main() {
 		fmt.Printf("error initialising server: %s\n", err)
 		os.Exit(1)
 	}
-	templates = gotTemplates
-	mediaDir = os.Getenv("SMG_MEDIA_DIRECTORY")
+	mediaDir := os.Getenv("SMG_MEDIA_DIRECTORY")
 	if mediaDir == "" {
 		mediaDir = "/_media"
 	}
@@ -231,6 +223,7 @@ func main() {
 		MediaDirectory: mediaDir,
 		Stat:           os.Stat,
 		ReadDir:        os.ReadDir,
+		Templates:      gotTemplates,
 	}
 
 	mux.HandleFunc("*", hdlr.handlePage)
