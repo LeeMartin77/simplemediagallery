@@ -1,6 +1,12 @@
 {{define "contentViewerHTML"}}
 <div class='content'>
-<img src='{{.RawPath}}' />
-<a href='{{.RawPath}}'>Full File</a>
+{{ if .IsImage }}
+
+  <img src='{{.RawPath}}' />
+{{ end }}
+{{ if .IsVideo }}
+  <video><source src='{{.RawPath}}' type='{{.FileType}}'/>Unsupported Browser</video>
+{{ end }}
+<a href='{{.RawPath}}'>Full File ({{.FileType}})</a>
 </div>
 {{end}}

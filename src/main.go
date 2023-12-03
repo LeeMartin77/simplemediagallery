@@ -39,8 +39,11 @@ type GalleryData struct {
 	Files          []GalleryFileData
 }
 
-type ImageData struct {
-	RawPath string
+type FileData struct {
+	RawPath  string
+	IsImage  bool
+	IsVideo  bool
+	FileType string
 }
 
 type Breadcrumb struct {
@@ -53,7 +56,7 @@ type PageData struct {
 	Breadcrumbs    []Breadcrumb
 	ShowGallery    bool
 	GalleryData    *GalleryData
-	ImageData      *ImageData
+	FileData       *FileData
 }
 
 type RequestHandlers struct {
@@ -61,6 +64,7 @@ type RequestHandlers struct {
 	Stat           func(name string) (fs.FileInfo, error)
 	ReadDir        func(name string) ([]fs.DirEntry, error)
 	Templates      *template.Template
+	DetectFile     func(path string) (*mimetype.MIME, error)
 }
 
 func (hdlr RequestHandlers) serveFile(w http.ResponseWriter, r *http.Request, f *os.File) {
@@ -260,8 +264,13 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 		data.ShowGallery = true
 	} else {
 		data.ShowGallery = false
-		data.ImageData = &ImageData{
-			RawPath: "/_media" + path,
+		mtype, _ := hdlr.DetectFile(requestDir)
+		ftype := mtype.String()
+		data.FileData = &FileData{
+			RawPath:  "/_media" + path,
+			IsImage:  strings.HasPrefix(ftype, "image"),
+			IsVideo:  strings.HasPrefix(ftype, "video"),
+			FileType: ftype,
 		}
 	}
 	return &data
@@ -312,6 +321,7 @@ func main() {
 		Stat:           os.Stat,
 		ReadDir:        os.ReadDir,
 		Templates:      gotTemplates,
+		DetectFile:     mimetype.DetectFile,
 	}
 
 	mux.HandleFunc("*", hdlr.handlePage)
