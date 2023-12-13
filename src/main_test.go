@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/fs"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -76,8 +77,33 @@ func TestMinimumHappyPathDoesntError(t *testing.T) {
 		ReadDir:        mockOs.ReadDir,
 	}
 
-	testHandler.getPageData("/")
-	// if actualBody != expectedBody {
-	// 	t.Errorf("Expected body %s, but got %s", expectedBody, actualBody)
-	// }
+	data := testHandler.getPageData("/")
+	expGalData := GalleryData{
+		HasDirectories: false,
+		Files:          []GalleryFileData{{"testfilename.jpg", "/testfilename.jpg", "/_thumbnail/testfilename.jpg"}},
+	}
+	expectedData := PageData{
+		ShowBreadcrumb: false,
+		Breadcrumbs:    []Breadcrumb{},
+		ShowGallery:    true,
+		GalleryData:    &expGalData,
+	}
+
+	if expectedData.ShowBreadcrumb != data.ShowBreadcrumb ||
+		!reflect.DeepEqual(expectedData.Breadcrumbs, data.Breadcrumbs) ||
+		expectedData.ShowGallery != data.ShowGallery {
+		t.Errorf("Expected %v, but got %v", expectedData, data)
+	}
+	gd := *data.GalleryData
+	if !reflect.DeepEqual(expGalData.Files, gd.Files) {
+		t.Errorf("Expected %v, but got %v", expGalData.Files, gd.Files)
+
+	}
+	//interesting - two empty slices are not the same under deep equal
+	if len(gd.Directories) > 0 && !reflect.DeepEqual(expGalData.Directories, gd.Directories) {
+		t.Errorf("Expected %v, but got %v", expGalData.Directories, gd.Directories)
+	}
+	if expGalData.HasDirectories != gd.HasDirectories {
+		t.Errorf("Expected %v, but got %v", expGalData.HasDirectories, gd.HasDirectories)
+	}
 }

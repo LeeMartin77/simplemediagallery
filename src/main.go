@@ -28,9 +28,7 @@ type GalleryDirectoryData struct {
 }
 
 type GalleryFileData struct {
-	Name      string
-	Link      string
-	Thumbnail string
+	Name, Link, Thumbnail string
 }
 
 type GalleryData struct {
@@ -47,8 +45,7 @@ type FileData struct {
 }
 
 type Breadcrumb struct {
-	Name string
-	Link string
+	Name, Link string
 }
 
 type PageData struct {
@@ -206,20 +203,20 @@ func getTemplates() (templates *template.Template, err error) {
 
 func (hdlr RequestHandlers) getPageData(path string) *PageData {
 	requestDir := hdlr.MediaDirectory
+	breadcrumbs := []Breadcrumb{}
 	if path != "/" {
 		requestDir = requestDir + path
-	}
 
-	compoundLink := ""
+		compoundLink := ""
 
-	breadcrumbs := []Breadcrumb{}
+		for _, prt := range strings.Split(path, "/") {
+			compoundLink = compoundLink + prt + "/"
+			breadcrumbs = append(breadcrumbs, Breadcrumb{
+				Name: prt,
+				Link: compoundLink,
+			})
+		}
 
-	for _, prt := range strings.Split(path, "/") {
-		compoundLink = compoundLink + prt + "/"
-		breadcrumbs = append(breadcrumbs, Breadcrumb{
-			Name: prt,
-			Link: compoundLink,
-		})
 	}
 
 	data := PageData{
@@ -249,10 +246,14 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 					Link: fmt.Sprintf("%s/%s", rooting, file.Name()),
 				})
 			} else {
+				extraSlash := ""
+				if path != "/" {
+					extraSlash = "/"
+				}
 				galleryFiles = append(galleryFiles, GalleryFileData{
 					Name:      file.Name(),
 					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
-					Thumbnail: fmt.Sprintf("/_thumbnail%s/%s", path, file.Name()),
+					Thumbnail: fmt.Sprintf("/_thumbnail%s%s%s", path, extraSlash, file.Name()),
 				})
 			}
 		}
