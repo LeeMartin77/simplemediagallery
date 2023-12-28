@@ -2,7 +2,7 @@
 {{ if .HasDirectories }}
   <div class='directories'>
     {{range $dir := .Directories }}
-      <a href="{{$dir.Link}}"><img src='/static/folder.png' width='16px' /> {{$dir.Name}}</a>
+      <a href="{{$dir.Link}}"><img src='/static/folder.png' width='16px' /> {{$dir.Name}} ({{$dir.FileCount}})</a>
     {{end}}
   </div>
 {{ end }}

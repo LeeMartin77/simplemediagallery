@@ -27,8 +27,9 @@ import (
 )
 
 type GalleryDirectoryData struct {
-	Name string
-	Link string
+	Name      string
+	Link      string
+	FileCount int
 }
 
 type GalleryFileData struct {
@@ -259,9 +260,14 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 		}
 		for _, file := range files {
 			if file.IsDir() {
+				subdir, err := hdlr.ReadDir(fmt.Sprintf("%s/%s", requestDir, file.Name()))
+				if err != nil {
+					continue
+				}
 				directories = append(directories, GalleryDirectoryData{
-					Name: file.Name(),
-					Link: fmt.Sprintf("%s/%s", rooting, file.Name()),
+					Name:      file.Name(),
+					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
+					FileCount: len(subdir),
 				})
 			} else {
 				extraSlash := ""
