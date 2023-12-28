@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -85,6 +86,14 @@ func (hdlr RequestHandlers) getMediaFile(w http.ResponseWriter, r *http.Request)
 	hdlr.serveFile(w, r, file)
 }
 
+var imageExtensions []string = []string{
+	"jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp", "svg",
+}
+
+var videoExtensions []string = []string{
+	"mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "mpeg", "mpg", "3gp",
+}
+
 func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
 	rawWidth := r.URL.Query().Get("width")
@@ -100,17 +109,23 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "No file found", http.StatusNotFound)
 		return
 	}
+	prts := strings.Split(filepath, ".")
+	ext := prts[len(prts)-1]
 	defer file.Close()
-	fileContents, err := io.ReadAll(file)
-	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return
-	}
-
-	mtype := mimetype.Detect(fileContents)
-	if strings.HasPrefix(mtype.String(), "image/") {
+	if slices.Contains(imageExtensions, ext) {
 		var img image.Image
 		var err error
+		fileContents, err := io.ReadAll(file)
+		if err != nil {
+			fmt.Println("Error reading file:", err)
+			return
+		}
+
+		mtype := mimetype.Detect(fileContents)
+		if !strings.HasPrefix(mtype.String(), "image/") {
+			fmt.Println("Not recognised as image")
+			return
+		}
 
 		imgFormat := strings.Split(mtype.String(), "/")[1]
 
@@ -154,7 +169,7 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(buf.Bytes()))
 		return
 	}
-	if strings.HasPrefix(mtype.String(), "video/") {
+	if slices.Contains(videoExtensions, ext) {
 		file, err := os.Open("./static/play.png")
 		if err != nil {
 			http.Error(w, "No file found", http.StatusNotFound)
