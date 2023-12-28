@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM docker.io/golang:1.20 as server-builder
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.21 as server-builder
 ARG TARGETPLATFORM
 WORKDIR /usr/src/app
 
