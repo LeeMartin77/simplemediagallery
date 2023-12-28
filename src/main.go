@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -13,10 +14,12 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/nfnt/resize"
@@ -330,6 +333,11 @@ func main() {
 	if mediaDir == "" {
 		mediaDir = "/_media"
 	}
+	port := "3333"
+	portSetting := os.Getenv("SMG_PORT")
+	if portSetting != "" {
+		port = portSetting
+	}
 	mux := http.NewServeMux()
 
 	hdlr := RequestHandlers{
@@ -343,14 +351,22 @@ func main() {
 	mux.HandleFunc("*", hdlr.handlePage)
 	mux.HandleFunc("/", hdlr.handlePage)
 
-	port := "3333"
-	portSetting := os.Getenv("SMG_PORT")
-	if portSetting != "" {
-		port = portSetting
-	}
-	err = http.ListenAndServe(":"+port, mux)
+	osSig := make(chan os.Signal, 1)
+	signal.Notify(osSig, syscall.SIGTERM, syscall.SIGINT)
+
+	srv := &http.Server{Addr: ":" + port, Handler: mux}
+
+	go func() {
+		s := <-osSig
+		// cleanup
+		fmt.Printf("Signal: %v\n", s)
+		srv.Shutdown(context.TODO())
+	}()
+
+	err = srv.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Printf("server closed\n")
+		os.Exit(0)
 	} else if err != nil {
 		fmt.Printf("error starting server: %s\n", err)
 		os.Exit(1)
