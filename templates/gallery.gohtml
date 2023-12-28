@@ -1,9 +1,12 @@
 {{define "galleryHTML"}}
 {{ if .HasDirectories }}
-  <div class='directories'>
+  <div id='directories' class='directories'>
     {{range $dir := .Directories }}
       <a href="{{$dir.Link}}"><img src='/static/folder.png' width='16px' /> {{$dir.Name}} ({{$dir.FileCount}})</a>
     {{end}}
+  </div>
+  <div class='directory-toggle'>
+    <button id='dir-toggle-button' onclick="toggleDirectories()">Directories</button>
   </div>
 {{ end }}
 <div class='gallery'>

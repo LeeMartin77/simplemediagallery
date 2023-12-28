@@ -19,15 +19,29 @@ a:visited {
 
 .directories {
   display: flex;
-  justify-content: space-between;
   width: calc(100% - 2em);
   padding: 1em;
   gap: 1em;
   flex-wrap: wrap;
-  max-height: 6em;
+  max-height: 12em;
   overflow-y: scroll;
   background-color: rgba(0,0,0,0.1);
 }
+
+.directory-toggle {
+  display: flex;
+  width: calc(100% - 2em);
+  padding: 1em;
+  justify-content: center;
+}
+
+.directory-toggle button {
+  color: #CCC;
+  background-color: #222;
+  padding: 0.5em;
+  border-radius: 0.5em;
+}
+
 .directories a {
   padding: 0.5em;
   border-radius: 0.5em;
