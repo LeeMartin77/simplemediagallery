@@ -1,6 +1,6 @@
 module github.com/LeeMartin77/SimpleMediaGallery
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
