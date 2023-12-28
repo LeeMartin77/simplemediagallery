@@ -2,6 +2,7 @@ package main
 
 import (
 	"io/fs"
+	"net/url"
 	"reflect"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestMinimumHappyPathDoesntError(t *testing.T) {
 		ReadDir:        mockOs.ReadDir,
 	}
 
-	data := testHandler.getPageData("/")
+	data := testHandler.getPageData("/", url.Values{})
 	expGalData := GalleryData{
 		HasDirectories: false,
 		Files:          []GalleryFileData{{"testfilename.jpg", "/testfilename.jpg", "/_thumbnail/testfilename.jpg"}},

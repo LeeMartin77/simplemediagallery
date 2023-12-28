@@ -47,6 +47,22 @@ a:visited {
   border-radius: 0.5em;
 }
 
+.gallery-filters {
+  display: flex;
+  width: calc(100% - 2em);
+  padding: 1em;
+  gap: 1em;
+  flex-wrap: wrap;
+  max-height: 12em;
+  overflow-y: scroll;
+  justify-content: center;
+}
+
+.gallery-filters a {
+  padding: 0.5em;
+  border-radius: 0.5em;
+}
+
 .gallery {
   display: flex;
   flex-direction: row;

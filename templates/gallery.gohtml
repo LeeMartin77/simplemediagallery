@@ -9,6 +9,11 @@
     <button id='dir-toggle-button' onclick="toggleDirectories()">Directories</button>
   </div>
 {{ end }}
+  <div class='gallery-filters'>
+    {{range $typ := .AvailableTypes }}
+      <a href="?visible={{$typ}}">{{$typ}} only</button>
+    {{end}}
+  </div>
 <div class='gallery'>
   {{range $file := .Files }}
   <div class='thumbnail' width='300'>

@@ -13,10 +13,12 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -40,6 +42,8 @@ type GalleryData struct {
 	HasDirectories bool
 	Directories    []GalleryDirectoryData
 	Files          []GalleryFileData
+	VisibleTypes   []string
+	AvailableTypes []string
 }
 
 type FileData struct {
@@ -220,7 +224,7 @@ func getTemplates() (templates *template.Template, err error) {
 	return template.New("").ParseFiles(allFiles...)
 }
 
-func (hdlr RequestHandlers) getPageData(path string) *PageData {
+func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData {
 	requestDir := hdlr.MediaDirectory
 	breadcrumbs := []Breadcrumb{}
 	if path != "/" {
@@ -258,6 +262,14 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 		if rooting == "/" {
 			rooting = ""
 		}
+
+		visibleTypes := []string{}
+		availableMap := map[string]bool{}
+
+		visible := query["visible"]
+
+		isFiltering := len(visible) > 0
+
 		for _, file := range files {
 			if file.IsDir() {
 				subdir, err := hdlr.ReadDir(fmt.Sprintf("%s/%s", requestDir, file.Name()))
@@ -269,22 +281,54 @@ func (hdlr RequestHandlers) getPageData(path string) *PageData {
 					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
 					FileCount: len(subdir),
 				})
-			} else {
-				extraSlash := ""
-				if path != "/" {
-					extraSlash = "/"
+				continue
+			}
+			prts := strings.Split(file.Name(), ".")
+			ext := prts[len(prts)-1]
+			if slices.Contains(imageExtensions, ext) {
+				availableMap["image"] = true
+				if isFiltering && !slices.Contains(visible, "image") {
+					continue
 				}
-				galleryFiles = append(galleryFiles, GalleryFileData{
-					Name:      file.Name(),
-					Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
-					Thumbnail: fmt.Sprintf("/_thumbnail%s%s%s", path, extraSlash, file.Name()),
-				})
+			}
+			if slices.Contains(videoExtensions, ext) {
+				availableMap["video"] = true
+				if isFiltering && !slices.Contains(visible, "video") {
+					continue
+				}
+			}
+			if !slices.Contains(imageExtensions, ext) && !slices.Contains(videoExtensions, ext) {
+				availableMap["other"] = true
+				if isFiltering && !slices.Contains(visible, "other") {
+					continue
+				}
+			}
+			extraSlash := ""
+			if path != "/" {
+				extraSlash = "/"
+			}
+			galleryFiles = append(galleryFiles, GalleryFileData{
+				Name:      file.Name(),
+				Link:      fmt.Sprintf("%s/%s", rooting, file.Name()),
+				Thumbnail: fmt.Sprintf("/_thumbnail%s%s%s", path, extraSlash, file.Name()),
+			})
+		}
+
+		availableTypes := []string{}
+		for k, v := range availableMap {
+			if v {
+				availableTypes = append(availableTypes, k)
 			}
 		}
+		sort.SliceStable(availableTypes, func(i, j int) bool {
+			return availableTypes[i] > availableTypes[j]
+		})
 		data.GalleryData = &GalleryData{
 			HasDirectories: len(directories) > 0,
 			Directories:    directories,
 			Files:          galleryFiles,
+			VisibleTypes:   visibleTypes,
+			AvailableTypes: availableTypes,
 		}
 		data.ShowGallery = true
 	} else {
@@ -316,7 +360,7 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 			return
 		}
 
-		data := hdlr.getPageData(request.URL.Path)
+		data := hdlr.getPageData(request.URL.Path, request.URL.Query())
 
 		if data == nil {
 			return
