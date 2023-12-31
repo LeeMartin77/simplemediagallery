@@ -284,7 +284,7 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData
 				continue
 			}
 			prts := strings.Split(file.Name(), ".")
-			ext := prts[len(prts)-1]
+			ext := strings.ToLower(prts[len(prts)-1])
 			if slices.Contains(imageExtensions, ext) {
 				availableMap["image"] = true
 				if isFiltering && !slices.Contains(visible, "image") {
