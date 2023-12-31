@@ -118,7 +118,7 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	prts := strings.Split(filepath, ".")
-	ext := prts[len(prts)-1]
+	ext := strings.ToLower(prts[len(prts)-1])
 	defer file.Close()
 	if slices.Contains(imageExtensions, ext) {
 		var img image.Image
