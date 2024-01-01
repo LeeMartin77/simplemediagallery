@@ -58,9 +58,11 @@ type Breadcrumb struct {
 }
 
 type PageData struct {
+	HideSearch     bool
 	ShowBreadcrumb bool
 	Breadcrumbs    []Breadcrumb
 	ShowGallery    bool
+	URL            string
 	GalleryData    *GalleryData
 	FileData       *FileData
 }
@@ -244,6 +246,7 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData
 
 	data := PageData{
 		ShowBreadcrumb: path != "/",
+		URL:            path,
 		Breadcrumbs:    breadcrumbs,
 		ShowGallery:    true,
 	}
@@ -345,6 +348,70 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData
 	return &data
 }
 
+func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request) {
+	fp := r.URL.Path
+	fp = strings.Replace(fp, "/_search", hdlr.MediaDirectory, 1)
+	qry := r.URL.Query().Get("query")
+	if qry == "" {
+		http.Error(w, "Missing Query Parameters", http.StatusBadRequest)
+		return
+	}
+	breadcrumbs := []Breadcrumb{}
+	if strings.Replace(r.URL.Path, "/_search", "", 1) != "/" {
+		compoundLink := ""
+
+		for _, prt := range strings.Split(strings.Replace(r.URL.Path, "/_search", "", 1), "/") {
+			compoundLink = compoundLink + prt + "/"
+			breadcrumbs = append(breadcrumbs, Breadcrumb{
+				Name: prt,
+				Link: compoundLink,
+			})
+		}
+	}
+	data := PageData{
+		HideSearch:     true,
+		ShowBreadcrumb: true,
+		URL:            r.URL.Path,
+		Breadcrumbs:    breadcrumbs,
+		ShowGallery:    true,
+		GalleryData:    &GalleryData{},
+	}
+	err := filepath.Walk(fp, func(path string, info os.FileInfo, err error) error {
+		if err == nil && strings.Contains(strings.ToLower(info.Name()), strings.ToLower(qry)) {
+			if info.IsDir() {
+				subdir, err := hdlr.ReadDir(path)
+				if err != nil {
+					return nil
+				}
+				data.GalleryData.HasDirectories = true
+				data.GalleryData.Directories = append(data.GalleryData.Directories, GalleryDirectoryData{
+					Name:      info.Name(),
+					Link:      strings.Replace(strings.Replace(path, hdlr.MediaDirectory, "", 1), "/_search", "", 1),
+					FileCount: len(subdir),
+				})
+			} else {
+				data.GalleryData.Files = append(data.GalleryData.Files, GalleryFileData{
+					Name:      info.Name(),
+					Link:      strings.Replace(strings.Replace(path, hdlr.MediaDirectory, "", 1), "/_search", "", 1),
+					Thumbnail: fmt.Sprintf("/_thumbnail%s", strings.Replace(path, hdlr.MediaDirectory, "", 1)),
+				})
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		http.Error(w, "Something just went wrong", http.StatusInternalServerError)
+		return
+	}
+
+	err = hdlr.Templates.ExecuteTemplate(w, "baseHTML", data)
+	if err != nil {
+		return
+	}
+
+}
+
 func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
 		if strings.HasPrefix(request.URL.Path, "/_media") {
@@ -353,6 +420,10 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 		}
 		if strings.HasPrefix(request.URL.Path, "/_thumbnail") {
 			hdlr.getThumbnail(writer, request)
+			return
+		}
+		if strings.HasPrefix(request.URL.Path, "/_search") {
+			hdlr.performSearch(writer, request)
 			return
 		}
 		if strings.HasPrefix(request.URL.Path, "/static") {

@@ -14,6 +14,14 @@
   {{template "breadcrumbHTML" .}}
 {{ end }}
 {{ if .ShowGallery }}
+  {{ if not .HideSearch }}
+    <form class="search-form" action="/_search{{.URL}}" method="GET">
+      <input name="query" />
+      <button type="submit">
+      Search
+      </button>
+    </form>
+  {{ end }}
   {{template "galleryHTML" .GalleryData}}
 {{ else }}
   {{template "contentViewerHTML" .FileData}}

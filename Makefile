@@ -9,7 +9,7 @@ build:
 	go build -o dist/smg src/main.go
 
 run:
-	SMG_MEDIA_DIRECTORY='./example' go run src/main.go
+	SMG_MEDIA_DIRECTORY='example' go run src/main.go
 
 test:
 	go test ./src
