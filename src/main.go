@@ -26,6 +26,7 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/nfnt/resize"
+	ffmpeg "github.com/u2takey/ffmpeg-go"
 	"golang.org/x/image/bmp"
 )
 
@@ -116,6 +117,20 @@ var videoExtensions []string = []string{
 	"mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "mpeg", "mpg", "3gp",
 }
 
+// shamelessly stolen from the docs
+func ExampleReadFrameAsJpeg(inFileName string, frameNum int) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	err := ffmpeg.Input(inFileName).
+		Filter("select", ffmpeg.Args{fmt.Sprintf("gte(n,%d)", frameNum)}).
+		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg"}).
+		WithOutput(buf, os.Stdout).
+		Run()
+	if err != nil {
+		return []byte{}, err
+	}
+	return buf.Bytes(), nil
+}
+
 func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
 	rawWidth := r.URL.Query().Get("width")
@@ -192,13 +207,19 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if slices.Contains(videoExtensions, ext) {
-		file, err := os.Open("./static/play.png")
+		byts, err := ExampleReadFrameAsJpeg(filepath, 50)
 		if err != nil {
-			http.Error(w, "No file found", http.StatusNotFound)
+			file, err := os.Open("./static/play.png")
+			defer file.Close()
+			if err != nil {
+				http.Error(w, "No file found", http.StatusNotFound)
+				return
+			}
+			hdlr.serveFile(w, r, file)
 			return
 		}
-		defer file.Close()
-		hdlr.serveFile(w, r, file)
+		st, err := file.Stat()
+		http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(byts))
 		return
 	}
 	file, err = os.Open("./static/picture.png")
