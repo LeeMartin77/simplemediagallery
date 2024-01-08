@@ -5,7 +5,31 @@
   <img src='{{.RawPath}}' />
 {{ end }}
 {{ if .IsVideo }}
-  <video><source src='{{.RawPath}}' type='{{.FileType}}'/>Unsupported Browser</video>
+  {{.VideoDuration}}
+  <video
+    id="video"
+    class="video-js vjs-default-skin"
+    poster="/_thumbnail{{.URL}}"
+    controls
+    preload="auto"
+    vjs-fluid
+    width="640"
+    height="264"
+    data-setup="{}"
+  >
+    <source src="{{.RawPath}}.ogv" type="video/mp4">
+    <p class="vjs-no-js">
+      To view this video please enable JavaScript, and consider upgrading to a
+      web browser that
+      <a href="https://videojs.com/html5-video-support/" target="_blank"
+        >supports HTML5 video</a
+      >
+    </p>
+  </video>
+  <script>
+      var video= videojs('video');
+      video.duration=() => {{.VideoDuration}};
+  </script>
 {{ end }}
 <a href='{{.RawPath}}'>Full File ({{.FileType}})</a>
 </div>

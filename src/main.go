@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -60,10 +61,12 @@ var (
 )
 
 type FileData struct {
-	RawPath  string
-	IsImage  bool
-	IsVideo  bool
-	FileType string
+	URL           string
+	RawPath       string
+	IsImage       bool
+	IsVideo       bool
+	VideoDuration float64
+	FileType      string
 }
 
 type Breadcrumb struct {
@@ -123,7 +126,7 @@ func ExampleReadFrameAsJpeg(inFileName string, frameNum int) ([]byte, error) {
 	err := ffmpeg.Input(inFileName).
 		Filter("select", ffmpeg.Args{fmt.Sprintf("gte(n,%d)", frameNum)}).
 		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg"}).
-		WithOutput(buf, os.Stdout).
+		WithOutput(buf).
 		Run()
 	if err != nil {
 		return []byte{}, err
@@ -381,9 +384,34 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values, pageNum i
 			IsImage:  strings.HasPrefix(ftype, "image"),
 			IsVideo:  strings.HasPrefix(ftype, "video"),
 			FileType: ftype,
+			URL:      path,
+		}
+		if data.FileData.IsVideo {
+			dt, _ := ffmpeg.Probe(requestDir)
+			var metadata FFMpegProbe
+			err := json.Unmarshal([]byte(dt), &metadata)
+			if err != nil {
+				return &data
+			}
+
+			dur, err := strconv.ParseFloat(metadata.Format.Duration, 64)
+			if err != nil {
+				return &data
+			}
+
+			data.FileData.VideoDuration = dur
 		}
 	}
 	return &data
+}
+
+type FFMPegProbeFormat struct {
+	Duration string `json:"duration"`
+	BitRate  string `json:"bit_rate"`
+}
+
+type FFMpegProbe struct {
+	Format FFMPegProbeFormat `json:"format"`
 }
 
 func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request) {
@@ -469,8 +497,83 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 
 }
 
+func (hdlr RequestHandlers) serveStream(w http.ResponseWriter, r *http.Request) {
+	filepath := r.URL.Path
+	filepath = strings.Replace(filepath, "/_media", hdlr.MediaDirectory, 1)
+	filepath = strings.Replace(filepath, ".ogv", "", 1)
+	file, err := os.Open(filepath)
+
+	if err != nil {
+		http.Error(w, "No file found", http.StatusNotFound)
+		return
+	}
+	dt, _ := ffmpeg.Probe(filepath)
+	var metadata FFMpegProbe
+	err = json.Unmarshal([]byte(dt), &metadata)
+	if err != nil {
+		http.Error(w, "Error with metadata", http.StatusInternalServerError)
+		return
+	}
+
+	dur, err := strconv.ParseFloat(metadata.Format.Duration, 64)
+	if err != nil {
+		http.Error(w, "Error with metadata", http.StatusInternalServerError)
+		return
+	}
+	br, err := strconv.Atoi(metadata.Format.BitRate)
+	if err != nil {
+		http.Error(w, "Error with metadata", http.StatusInternalServerError)
+		return
+	}
+
+	predictedSize := int(float64(br) * dur)
+	fmt.Println(predictedSize)
+	//chunkSizeSeconds := 10
+
+	//rangeHeader := r.Header.Get("Range")
+	//pts := strings.Split(rangeHeader, "-")
+	//startByte, _ := strconv.Atoi(pts[0])
+	//endByte := (chunkSizeSeconds * br) + startByte
+	defer file.Close()
+	start := float64(0)
+	strtStr := r.URL.Query().Get("start")
+	strt, err := strconv.ParseFloat(strtStr, 64)
+	if err == nil {
+		start = strt
+	}
+	st, err := file.Stat()
+
+	buf := bytes.NewBuffer(nil)
+	err = ffmpeg.Input(filepath, ffmpeg.KwArgs{"ss": start}).
+		Output("pipe:", ffmpeg.KwArgs{
+			"vcodec":   "libtheora",
+			"acodec":   "libvorbis",
+			"qscale:v": "3",
+			"qscale:a": "3",
+			"b":        metadata.Format.BitRate,
+			"f":        "ogv",
+			//"t":        chunkSizeSeconds,
+		}).
+		WithOutput(buf).
+		Run()
+	if err != nil {
+		http.Error(w, "Something went wrong transcoding", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "video/ogv")
+	http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(buf.Bytes()))
+	// w.Header().Set("Content-Range", fmt.Sprintf(`bytes %d-%d/%d`, startByte, endByte, predictedSize))
+	// w.Header().Set("Accept-Ranges", "bytes")
+	// w.Header().Set("Content-Length", fmt.Sprintf("%d", endByte-startByte+1))
+	return
+}
+
 func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
+		if strings.HasSuffix(request.URL.Path, ".ogv") {
+			hdlr.serveStream(writer, request)
+			return
+		}
 		if strings.HasPrefix(request.URL.Path, "/_media") {
 			hdlr.getMediaFile(writer, request)
 			return
