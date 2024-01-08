@@ -14,12 +14,22 @@
       <a href="?visible={{$typ}}">{{$typ}} only</button>
     {{end}}
   </div>
-<div class='gallery'>
+<div class='gallery' id="gallery">
   {{range $file := .Files }}
   <div class='thumbnail' style="max-width: 500px">
     <a href="{{$file.Link}}"><img src='{{$file.Thumbnail}}?width=600' /></a>
     <a href="{{$file.Link}}">{{$file.Name}}</a>
   </div>
   {{end}}
+  {{ if .HasMore }}
+    <div style="width: 100%; text-align: center;" 
+      hx-trigger="revealed" 
+      hx-get="{{.URL}}?pageNum={{.NextPage}}&query={{.Query}}" 
+      hx-swap="outerHTML" 
+      hx-select="#gallery > div">
+      Loading More...
+    </div>
+  {{ end}}
 </div>
+
 {{end}}

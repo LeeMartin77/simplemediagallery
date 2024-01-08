@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"io"
 	"io/fs"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,7 +46,17 @@ type GalleryData struct {
 	VisibleTypes   []string
 	AvailableTypes []string
 	Query          string
+	PageNumber     int
+	NextPage       int //blame templates
+	PageLength     int
+	URL            string
+	HasMore        bool
 }
+
+var (
+	DEFAULT_PAGE_NUMBER = 1
+	DEFAULT_PAGE_LENGTH = 25
+)
 
 type FileData struct {
 	RawPath  string
@@ -354,6 +365,16 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 	url := strings.Replace(fp, "/_search", "", 1)
 	fp = strings.Replace(fp, "/_search", hdlr.MediaDirectory, 1)
 	qry := r.URL.Query().Get("query")
+	pageNumStr := r.URL.Query().Get("pageNum")
+	pageNum, err := strconv.Atoi(pageNumStr)
+	if err != nil || pageNum == 0 {
+		pageNum = DEFAULT_PAGE_NUMBER
+	}
+	pageLenStr := r.URL.Query().Get("pageLen")
+	pageLen, err := strconv.Atoi(pageLenStr)
+	if err != nil || pageLen == 0 {
+		pageLen = DEFAULT_PAGE_LENGTH
+	}
 	if qry == "" {
 		http.Error(w, "Missing Query Parameters", http.StatusBadRequest)
 		return
@@ -379,7 +400,8 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 		GalleryData:    &GalleryData{},
 	}
 	data.GalleryData.Query = qry
-	err := filepath.Walk(fp, func(path string, info os.FileInfo, err error) error {
+	matchedFiles := []GalleryFileData{}
+	err = filepath.Walk(fp, func(path string, info os.FileInfo, err error) error {
 		if err == nil && strings.Contains(strings.ToLower(info.Name()), strings.ToLower(qry)) {
 			if info.IsDir() {
 				subdir, err := hdlr.ReadDir(path)
@@ -393,7 +415,7 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 					FileCount: len(subdir),
 				})
 			} else {
-				data.GalleryData.Files = append(data.GalleryData.Files, GalleryFileData{
+				matchedFiles = append(matchedFiles, GalleryFileData{
 					Name:      info.Name(),
 					Link:      strings.Replace(strings.Replace(path, hdlr.MediaDirectory, "", 1), "/_search", "", 1),
 					Thumbnail: fmt.Sprintf("/_thumbnail%s", strings.Replace(path, hdlr.MediaDirectory, "", 1)),
@@ -402,6 +424,12 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 		}
 		return nil
 	})
+
+	start := (pageNum - 1) * pageLen
+	data.GalleryData.Files = matchedFiles[(pageNum-1)*pageLen : int(math.Min(float64(start+pageLen), float64(len(matchedFiles))))]
+	data.GalleryData.URL = r.URL.Path
+	data.GalleryData.NextPage = pageNum + 1
+	data.GalleryData.HasMore = start+pageLen < len(matchedFiles)
 
 	if err != nil {
 		http.Error(w, "Something just went wrong", http.StatusInternalServerError)
