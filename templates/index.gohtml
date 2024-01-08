@@ -6,22 +6,21 @@
     <meta charset="UTF-8" />
     <link href="/static/styles.css" rel="stylesheet"/>
     <script src="/static/scripts.js" type="application/javascript"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="/static/htmx@1.9.10.min.js" type="application/javascript"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    
     <title>Simple Media Gallery</title>
   </head>
-<body>
+<body hx-boost="true">
 {{ if .ShowBreadcrumb }}
   {{template "breadcrumbHTML" .}}
 {{ end }}
 {{ if .ShowGallery }}
-  {{ if not .HideSearch }}
-    <form class="search-form" action="/_search{{.URL}}" method="GET">
-      <input name="query" />
-      <button type="submit">
-      Search
-      </button>
-    </form>
-  {{ end }}
+  <form class="search-form" action="/_search{{.URL}}" method="GET">
+    <input name="query" id="query" value="{{.GalleryData.Query}}" />
+    <button type="submit">
+    Search
+    </button>
+  </form>
   {{template "galleryHTML" .GalleryData}}
 {{ else }}
   {{template "contentViewerHTML" .FileData}}

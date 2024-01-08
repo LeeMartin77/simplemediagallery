@@ -44,6 +44,7 @@ type GalleryData struct {
 	Files          []GalleryFileData
 	VisibleTypes   []string
 	AvailableTypes []string
+	Query          string
 }
 
 type FileData struct {
@@ -350,6 +351,7 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData
 
 func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request) {
 	fp := r.URL.Path
+	url := strings.Replace(fp, "/_search", "", 1)
 	fp = strings.Replace(fp, "/_search", hdlr.MediaDirectory, 1)
 	qry := r.URL.Query().Get("query")
 	if qry == "" {
@@ -371,11 +373,12 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 	data := PageData{
 		HideSearch:     true,
 		ShowBreadcrumb: true,
-		URL:            r.URL.Path,
+		URL:            url,
 		Breadcrumbs:    breadcrumbs,
 		ShowGallery:    true,
 		GalleryData:    &GalleryData{},
 	}
+	data.GalleryData.Query = qry
 	err := filepath.Walk(fp, func(path string, info os.FileInfo, err error) error {
 		if err == nil && strings.Contains(strings.ToLower(info.Name()), strings.ToLower(qry)) {
 			if info.IsDir() {
