@@ -238,7 +238,7 @@ func getTemplates() (templates *template.Template, err error) {
 	return template.New("").ParseFiles(allFiles...)
 }
 
-func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData {
+func (hdlr RequestHandlers) getPageData(path string, query url.Values, pageNum int, pageLen int) *PageData {
 	requestDir := hdlr.MediaDirectory
 	breadcrumbs := []Breadcrumb{}
 	if path != "/" {
@@ -338,13 +338,18 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values) *PageData
 		sort.SliceStable(availableTypes, func(i, j int) bool {
 			return availableTypes[i] > availableTypes[j]
 		})
+
 		data.GalleryData = &GalleryData{
 			HasDirectories: len(directories) > 0,
 			Directories:    directories,
-			Files:          galleryFiles,
 			VisibleTypes:   visibleTypes,
 			AvailableTypes: availableTypes,
 		}
+		start := (pageNum - 1) * pageLen
+		data.GalleryData.Files = galleryFiles[(pageNum-1)*pageLen : int(math.Min(float64(start+pageLen), float64(len(galleryFiles))))]
+		data.GalleryData.URL = path
+		data.GalleryData.NextPage = pageNum + 1
+		data.GalleryData.HasMore = start+pageLen < len(galleryFiles)
 		data.ShowGallery = true
 	} else {
 		data.ShowGallery = false
@@ -462,13 +467,23 @@ func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http
 			return
 		}
 
-		data := hdlr.getPageData(request.URL.Path, request.URL.Query())
+		pageNumStr := request.URL.Query().Get("pageNum")
+		pageNum, err := strconv.Atoi(pageNumStr)
+		if err != nil || pageNum == 0 {
+			pageNum = DEFAULT_PAGE_NUMBER
+		}
+		pageLenStr := request.URL.Query().Get("pageLen")
+		pageLen, err := strconv.Atoi(pageLenStr)
+		if err != nil || pageLen == 0 {
+			pageLen = DEFAULT_PAGE_LENGTH
+		}
+		data := hdlr.getPageData(request.URL.Path, request.URL.Query(), pageNum, pageLen)
 
 		if data == nil {
 			return
 		}
 
-		err := hdlr.Templates.ExecuteTemplate(writer, "baseHTML", data)
+		err = hdlr.Templates.ExecuteTemplate(writer, "baseHTML", data)
 		if err != nil {
 			return
 		}

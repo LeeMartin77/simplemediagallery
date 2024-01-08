@@ -78,7 +78,7 @@ func TestMinimumHappyPathDoesntError(t *testing.T) {
 		ReadDir:        mockOs.ReadDir,
 	}
 
-	data := testHandler.getPageData("/", url.Values{})
+	data := testHandler.getPageData("/", url.Values{}, 1, 25)
 	expGalData := GalleryData{
 		HasDirectories: false,
 		Files:          []GalleryFileData{{"testfilename.jpg", "/testfilename.jpg", "/_thumbnail/testfilename.jpg"}},
