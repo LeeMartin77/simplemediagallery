@@ -5,19 +5,18 @@
   <img src='{{.RawPath}}' />
 {{ end }}
 {{ if .IsVideo }}
-  {{.VideoDuration}}
+ {{ if .IsStreamable}}
   <video
     id="video"
-    class="video-js vjs-default-skin"
+    class="video-js vjs-default-skin vjs-fluid"
     poster="/_thumbnail{{.URL}}"
     controls
-    preload="auto"
-    vjs-fluid
+    preload="false"
     width="640"
     height="264"
-    data-setup="{}"
+    data-setup='{"xhr": {"withCredentials": true}}'
   >
-    <source src="{{.RawPath}}.ogv" type="video/mp4">
+    <source src="/_stream{{.URL}}" type="video/mp4">
     <p class="vjs-no-js">
       To view this video please enable JavaScript, and consider upgrading to a
       web browser that
@@ -30,6 +29,11 @@
       var video= videojs('video');
       video.duration=() => {{.VideoDuration}};
   </script>
+ {{ else }}
+  <img src='/_thumbnail{{.URL}}' />
+ {{ end }}
+ 
+  <span>Duration: {{.VideoDurationPretty}}</span>
 {{ end }}
 <a href='{{.RawPath}}'>Full File ({{.FileType}})</a>
 </div>

@@ -61,12 +61,14 @@ var (
 )
 
 type FileData struct {
-	URL           string
-	RawPath       string
-	IsImage       bool
-	IsVideo       bool
-	VideoDuration float64
-	FileType      string
+	URL                 string
+	RawPath             string
+	IsImage             bool
+	IsVideo             bool
+	IsStreamable        bool
+	VideoDuration       float64
+	VideoDurationPretty string
+	FileType            string
 }
 
 type Breadcrumb struct {
@@ -120,11 +122,38 @@ var videoExtensions []string = []string{
 	"mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "mpeg", "mpg", "3gp",
 }
 
-// shamelessly stolen from the docs
-func ExampleReadFrameAsJpeg(inFileName string, frameNum int) ([]byte, error) {
+func ReadPreviewFrameAsJpeg(inFileName string) ([]byte, error) {
+
+	dt, err := ffmpeg.Probe(inFileName)
+	if err != nil {
+		return []byte{}, err
+	}
+	var metadata FFMpegProbe
+	err = json.Unmarshal([]byte(dt), &metadata)
+	if err != nil {
+		return []byte{}, err
+	}
+	frame := 0      // fallback to first frame
+	maxFrame := 600 // we need a limit as ffmpeg might try and read the whole damn file
+	for _, stream := range metadata.Streams {
+		if stream.CodecType == "video" {
+			// find our center frame
+			pts := strings.Split(stream.AverageFrameRate, "/")
+			fr, err := strconv.Atoi(pts[0])
+			if err == nil {
+				dur, err := strconv.ParseFloat(metadata.Format.Duration, 64)
+				if err == nil {
+					frame = (int(dur) / 2) * fr
+					frame = int(math.Min(float64(frame), float64(maxFrame)))
+				}
+			}
+
+			break
+		}
+	}
 	buf := bytes.NewBuffer(nil)
-	err := ffmpeg.Input(inFileName).
-		Filter("select", ffmpeg.Args{fmt.Sprintf("gte(n,%d)", frameNum)}).
+	err = ffmpeg.Input(inFileName).
+		Filter("select", ffmpeg.Args{fmt.Sprintf("gte(n,%d)", frame)}).
 		Output("pipe:", ffmpeg.KwArgs{"vframes": 1, "format": "image2", "vcodec": "mjpeg"}).
 		WithOutput(buf).
 		Run()
@@ -210,7 +239,7 @@ func (hdlr RequestHandlers) getThumbnail(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if slices.Contains(videoExtensions, ext) {
-		byts, err := ExampleReadFrameAsJpeg(filepath, 50)
+		byts, err := ReadPreviewFrameAsJpeg(filepath)
 		if err != nil {
 			file, err := os.Open("./static/play.png")
 			defer file.Close()
@@ -380,11 +409,12 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values, pageNum i
 		mtype, _ := hdlr.DetectFile(requestDir)
 		ftype := mtype.String()
 		data.FileData = &FileData{
-			RawPath:  "/_media" + path,
-			IsImage:  strings.HasPrefix(ftype, "image"),
-			IsVideo:  strings.HasPrefix(ftype, "video"),
-			FileType: ftype,
-			URL:      path,
+			RawPath:      "/_media" + path,
+			IsImage:      strings.HasPrefix(ftype, "image"),
+			IsVideo:      strings.HasPrefix(ftype, "video"),
+			IsStreamable: isStreamable(path),
+			FileType:     ftype,
+			URL:          path,
 		}
 		if data.FileData.IsVideo {
 			dt, _ := ffmpeg.Probe(requestDir)
@@ -399,7 +429,11 @@ func (hdlr RequestHandlers) getPageData(path string, query url.Values, pageNum i
 				return &data
 			}
 
+			minutes := int(dur / 60)
+			remainderSeconds := int(int(dur) % 60)
+
 			data.FileData.VideoDuration = dur
+			data.FileData.VideoDurationPretty = fmt.Sprintf("%d:%d", minutes, remainderSeconds)
 		}
 	}
 	return &data
@@ -410,8 +444,14 @@ type FFMPegProbeFormat struct {
 	BitRate  string `json:"bit_rate"`
 }
 
+type FFMPegStreamFormat struct {
+	CodecType        string `json:"codec_type"`     //video, audio
+	AverageFrameRate string `json:"avg_frame_rate"` // 24/1
+}
+
 type FFMpegProbe struct {
-	Format FFMPegProbeFormat `json:"format"`
+	Format  FFMPegProbeFormat `json:"format"`
+	Streams []FFMPegStreamFormat
 }
 
 func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request) {
@@ -497,80 +537,109 @@ func (hdlr RequestHandlers) performSearch(w http.ResponseWriter, r *http.Request
 
 }
 
+var streamableVideoExtensions = []string{".mp4", ".webm", ".ogg", ".3gp"}
+
+func isStreamable(filepath string) bool {
+	for _, fmt := range streamableVideoExtensions {
+		if strings.HasSuffix(strings.ToLower(filepath), fmt) {
+			return true
+		}
+	}
+	return false
+}
+
 func (hdlr RequestHandlers) serveStream(w http.ResponseWriter, r *http.Request) {
 	filepath := r.URL.Path
-	filepath = strings.Replace(filepath, "/_media", hdlr.MediaDirectory, 1)
-	filepath = strings.Replace(filepath, ".ogv", "", 1)
+	filepath = strings.Replace(filepath, "/_stream", hdlr.MediaDirectory, 1)
+	if !isStreamable(filepath) {
+		http.Error(w, "Not streamable media", http.StatusBadRequest)
+		return
+	}
 	file, err := os.Open(filepath)
-
 	if err != nil {
 		http.Error(w, "No file found", http.StatusNotFound)
 		return
 	}
-	dt, _ := ffmpeg.Probe(filepath)
-	var metadata FFMpegProbe
-	err = json.Unmarshal([]byte(dt), &metadata)
-	if err != nil {
-		http.Error(w, "Error with metadata", http.StatusInternalServerError)
-		return
-	}
 
-	dur, err := strconv.ParseFloat(metadata.Format.Duration, 64)
-	if err != nil {
-		http.Error(w, "Error with metadata", http.StatusInternalServerError)
-		return
-	}
-	br, err := strconv.Atoi(metadata.Format.BitRate)
-	if err != nil {
-		http.Error(w, "Error with metadata", http.StatusInternalServerError)
-		return
-	}
-
-	predictedSize := int(float64(br) * dur)
-	fmt.Println(predictedSize)
-	//chunkSizeSeconds := 10
-
-	//rangeHeader := r.Header.Get("Range")
-	//pts := strings.Split(rangeHeader, "-")
-	//startByte, _ := strconv.Atoi(pts[0])
-	//endByte := (chunkSizeSeconds * br) + startByte
-	defer file.Close()
-	start := float64(0)
-	strtStr := r.URL.Query().Get("start")
-	strt, err := strconv.ParseFloat(strtStr, 64)
-	if err == nil {
-		start = strt
-	}
+	fileContents, err := io.ReadAll(file)
 	st, err := file.Stat()
+	http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(fileContents))
 
-	buf := bytes.NewBuffer(nil)
-	err = ffmpeg.Input(filepath, ffmpeg.KwArgs{"ss": start}).
-		Output("pipe:", ffmpeg.KwArgs{
-			"vcodec":   "libtheora",
-			"acodec":   "libvorbis",
-			"qscale:v": "3",
-			"qscale:a": "3",
-			"b":        metadata.Format.BitRate,
-			"f":        "ogv",
-			//"t":        chunkSizeSeconds,
-		}).
-		WithOutput(buf).
-		Run()
-	if err != nil {
-		http.Error(w, "Something went wrong transcoding", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "video/ogv")
-	http.ServeContent(w, r, st.Name(), st.ModTime(), bytes.NewReader(buf.Bytes()))
+	// Come back to transcoding later, it was turning into a nightmare
+	// dt, _ := ffmpeg.Probe(filepath)
+	// var metadata FFMpegProbe
+	// err = json.Unmarshal([]byte(dt), &metadata)
+	// if err != nil {
+	// 	http.Error(w, "Error with metadata", http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// dur, err := strconv.ParseFloat(metadata.Format.Duration, 64)
+	// if err != nil {
+	// 	http.Error(w, "Error with metadata", http.StatusInternalServerError)
+	// 	return
+	// }
+	// br, err := strconv.Atoi(metadata.Format.BitRate)
+	// if err != nil {
+	// 	http.Error(w, "Error with metadata", http.StatusInternalServerError)
+	// 	return
+	// }
+
+	// predictedSize := int(float64(br) * dur)
+	// fmt.Println(predictedSize)
+	// chunkSizeSeconds := 10
+
+	// rangeHeader := r.Header.Get("Range")
+	// rangeHeader = strings.Replace(rangeHeader, "bytes=", "", 1)
+	// fmt.Printf("rnghed: %s\n", rangeHeader)
+	// pts := strings.Split(rangeHeader, "-")
+	// startByte, _ := strconv.Atoi(pts[0])
+	// defer file.Close()
+	// start := float64(0)
+	// if startByte != 0 {
+	// 	// range request
+	// 	// get the time in floatseconds where that byte is
+	// 	start = float64(startByte) / float64(br)
+	// } else {
+	// 	strtStr := r.URL.Query().Get("start")
+	// 	strt, err := strconv.ParseFloat(strtStr, 64)
+	// 	if err == nil {
+	// 		start = strt
+	// 	}
+	// }
+	// st, err := file.Stat()
+
+	// buf := bytes.NewBuffer(nil)
+	// err = ffmpeg.Input(filepath, ffmpeg.KwArgs{"ss": start}).
+	// 	Output("pipe:", ffmpeg.KwArgs{
+	// 		"vcodec":   "libtheora",
+	// 		"acodec":   "libvorbis",
+	// 		"qscale:v": "3",
+	// 		"qscale:a": "3",
+	// 		"b":        metadata.Format.BitRate,
+	// 		"f":        "ogv",
+	// 		"t":        chunkSizeSeconds + 2,
+	// 	}).
+	// 	WithOutput(buf).
+	// 	Run()
+	// if err != nil {
+	// 	http.Error(w, "Something went wrong transcoding", http.StatusInternalServerError)
+	// 	return
+	// }
+	// endByte := startByte + len(buf.Bytes())
+	// w.Header().Set("Content-Type", "video/ogv")
 	// w.Header().Set("Content-Range", fmt.Sprintf(`bytes %d-%d/%d`, startByte, endByte, predictedSize))
 	// w.Header().Set("Accept-Ranges", "bytes")
-	// w.Header().Set("Content-Length", fmt.Sprintf("%d", endByte-startByte+1))
+	// w.Header().Set("Content-Length", fmt.Sprintf("%d", int64(len(buf.Bytes()))))
+	// w.Header().Set("Last-Modified", st.ModTime().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT"))
+	// w.WriteHeader(http.StatusPartialContent)
+	// io.CopyN(w, buf, int64(len(buf.Bytes())))
 	return
 }
 
 func (hdlr RequestHandlers) handlePage(writer http.ResponseWriter, request *http.Request) {
 	if request.Method == "GET" {
-		if strings.HasSuffix(request.URL.Path, ".ogv") {
+		if strings.HasPrefix(request.URL.Path, "/_stream") {
 			hdlr.serveStream(writer, request)
 			return
 		}
