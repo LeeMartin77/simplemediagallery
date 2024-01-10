@@ -35,6 +35,6 @@
  
   <span>Duration: {{.VideoDurationPretty}}</span>
 {{ end }}
-<a href='{{.RawPath}}'>Full File ({{.FileType}})</a>
+<a href='{{.RawPath}}' hx-boost="false">Full File ({{.FileType}})</a>
 </div>
 {{end}}
